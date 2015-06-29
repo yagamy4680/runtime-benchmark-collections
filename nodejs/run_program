@@ -6,4 +6,4 @@ OUTPUT=$2
 [ "" == "$PROGRAM" ] && echo "please specify program" && exit 1
 [ "" == "$OUTPUT" ] && OUTPUT="/dev/null"
 
-$(which node) $PROGRAM >> $OUTPUT
+$(which node) $PROGRAM >> $OUTPUT 2>&1

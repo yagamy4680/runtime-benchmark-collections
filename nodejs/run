@@ -1,47 +1,104 @@
 #!/bin/bash
 
 function run_test {
-	DIR=$1
-	CURRENT=$(pwd)
-	cd $DIR
-	DIR=$(pwd)
-	cd $CURRENT
+	TEST=$1
+	DIR="${TESTDIR}/${TEST}"
+	INCLUDE_LIST=$2
 
-	DIRNAME="$(basename $DIR)"
-	WORKDIR=$2
-	INCLUDE_LIST=$3
 	SCRIPT_LIST="$(find $DIR -name '*.js' | xargs -I{} sh -c "echo {}")"
 	
-	if [ "" == "${INCLUDE_LIST}" ]; then
-		SCRIPTS=($SCRIPT_LIST)
+	if [ "" != "${INCLUDE_LIST}" ] && [ -f "${INCLUDE_LIST}" ]; then
+		TMP0="/tmp/run0"
+		TMP1="/tmp/run1"
+		SS=($SCRIPT_LIST)
+		for s in "${SS[@]}"
+		do
+			echo $s >> ${TMP0}
+		done
+
+		ITEMS=($(cat ${INCLUDE_LIST} | sed -e 's/^ *//' | sed -e 's/ *$//' | sed 's/#.*$//g' | grep -v "^$"))
+		for i in "${ITEMS[@]}"
+		do
+			cat ${TMP0} | grep "$i" >> ${TMP1}
+		done
+		SCRIPTS=($(cat ${TMP1}))
+		echo -e "\n"
+		rm -f ${TMP0}
+		rm -f ${TMP1}
 	else
+		echo "${INCLUDE_LIST} is missing ..."
 		SCRIPTS=($SCRIPT_LIST)
 	fi
+	
+	echo "running $TEST with following tests: " | tee -a $LOGFILE
+	for s in "${SCRIPTS[@]}"
+	do
+		echo -e "\t$s" | tee -a $LOGFILE
+	done
+	echo -e "\n" | tee -a $LOGFILE
 
-	LOGFILE="${WORKDIR}/${DIRNAME}.log"
-	WORKOUT_DIR="${WORKDIR}/${DIRNAME}"
+
+	WORKOUT_DIR="${WORKDIR}/${TEST}"
 	mkdir -p $WORKOUT_DIR
 
 	for s in "${SCRIPTS[@]}"
 	do
-		echo "running $s"
 		NAME="$(basename $s)"
 		OUTPUT="$WORKOUT_DIR/$NAME.out"
 		TIME=$($(which time) -f%e ./run_program $s $OUTPUT 2>&1) 
 		RES=$?
 		if [ "0" == "$RES" ]; then
-			echo "running $s ... ($TIME seconds)" | tee -a $LOGFILE
-			cat $OUTPUT | awk '{printf "\t%s\n", $0}' | tee -a $LOGFILE
+			echo -e "\t$s ($TIME seconds)" | tee -a $LOGFILE
+			cat $OUTPUT | awk '{printf "\t\t%s\n", $0}' | tee -a $LOGFILE
 		else
-			echo "running $s but failed." | tee -a $LOGFILE
-			cat $OUTPUT | awk '{printf "\t%s\n", $0}' | tee -a $LOGFILE
+			echo -e "\t$s failed (exit: $RES)" | tee -a $LOGFILE
+			cat $OUTPUT | awk '{printf "\t\t%s\n", $0}' | tee -a $LOGFILE
 		fi
 		echo -e "\n" | tee -a $LOGFILE
 	done
 }
 
-rm -rf ./work
-mkdir -p ./work
 
-run_test ./tests/iojs-benchmark ./work
+function list_experiments {
+	EXPS=$(find ${BASEDIR}/experiments -mindepth 1 -maxdepth 1 -type d | xargs -I{} sh -c "basename {}")
+	echo "please specify the name of experiment profile. here is the list of experiments: "
+	echo -e "\n${EXPS}\n--\n\n"
+	echo -e "or add more experiment profile at ${BASEDIR}/experiments\n"
+	exit 1
+}
 
+
+function cleanup {
+	rm -rf ${WORKDIR}
+}
+
+
+function run_all_tests {
+	TESTS=($(find ${TESTDIR} -mindepth 1 -maxdepth 1 -type d | xargs -I{} sh -c "basename {}"))
+	for t in "${TESTS[@]}"
+	do
+		run_test $t ${BASEDIR}/experiments/${EXPERIMENT}/${t}.include.conf
+	done
+}
+
+
+
+
+CURRENT=$(pwd)
+cd $(dirname $0)
+export BASEDIR=$(pwd)
+cd $CURRENT
+
+export EXPERIMENT=$1
+[ "" == "${EXPERIMENT}" ] && list_experiments
+
+export WORKDIR="${BASEDIR}/work"
+cleanup
+mkdir -p ${WORKDIR}
+
+export TESTDIR="${BASEDIR}/tests"
+export LOGFILE="${WORKDIR}/${EXPERIMENT}.log"
+
+echo -e "experiment: ${EXPERIMENT} (logfile at ${LOGFILE})\n"
+
+run_all_tests
