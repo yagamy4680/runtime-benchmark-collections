@@ -1,0 +1,9 @@
+#!/bin/bash
+
+PROGRAM=$1
+OUTPUT=$2
+
+[ "" == "$PROGRAM" ] && echo "please specify program" && exit 1
+[ "" == "$OUTPUT" ] && OUTPUT="/dev/null"
+
+$(which node) $PROGRAM >> $OUTPUT

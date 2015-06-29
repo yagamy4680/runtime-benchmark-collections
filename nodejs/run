@@ -1,0 +1,47 @@
+#!/bin/bash
+
+function run_test {
+	DIR=$1
+	CURRENT=$(pwd)
+	cd $DIR
+	DIR=$(pwd)
+	cd $CURRENT
+
+	DIRNAME="$(basename $DIR)"
+	WORKDIR=$2
+	INCLUDE_LIST=$3
+	SCRIPT_LIST="$(find $DIR -name '*.js' | xargs -I{} sh -c "echo {}")"
+	
+	if [ "" == "${INCLUDE_LIST}" ]; then
+		SCRIPTS=($SCRIPT_LIST)
+	else
+		SCRIPTS=($SCRIPT_LIST)
+	fi
+
+	LOGFILE="${WORKDIR}/${DIRNAME}.log"
+	WORKOUT_DIR="${WORKDIR}/${DIRNAME}"
+	mkdir -p $WORKOUT_DIR
+
+	for s in "${SCRIPTS[@]}"
+	do
+		echo "running $s"
+		NAME="$(basename $s)"
+		OUTPUT="$WORKOUT_DIR/$NAME.out"
+		TIME=$($(which time) -f%e ./run_program $s $OUTPUT 2>&1) 
+		RES=$?
+		if [ "0" == "$RES" ]; then
+			echo "running $s ... ($TIME seconds)" | tee -a $LOGFILE
+			cat $OUTPUT | awk '{printf "\t%s\n", $0}' | tee -a $LOGFILE
+		else
+			echo "running $s but failed." | tee -a $LOGFILE
+			cat $OUTPUT | awk '{printf "\t%s\n", $0}' | tee -a $LOGFILE
+		fi
+		echo -e "\n" | tee -a $LOGFILE
+	done
+}
+
+rm -rf ./work
+mkdir -p ./work
+
+run_test ./tests/iojs-benchmark ./work
+
