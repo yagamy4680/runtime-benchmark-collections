@@ -1,5 +1,9 @@
 #!/bin/bash
 
+function DBG {
+	[ "true" == "${VERBOSE}" ] && echo $1 >&2
+}
+
 function run_test {
 	NAME=$1
 	SCRIPT="$(dirname $0)/${NAME}.js"
@@ -8,6 +12,8 @@ function run_test {
 
 	START=$(date '+%s %N')
 	READY_AT=$(${NODE} ${SCRIPT} ${START})
+	RET=$?
+	[ "0" != "${RET}" ] && echo "failed to run ${NAME}.js" >&2 && exit 1
 	END=$(date '+%s %N')
 
 	SECOND_S=$(echo $START | awk '{print $1}')
@@ -15,12 +21,58 @@ function run_test {
 	NANO_S=$(echo $START | awk '{print $2}')
 	NANO_E=$(echo $END   | awk '{print $2}')
 
+	DBG "expr ${SECOND_E} - ${SECOND_S}"
 	DIFF_SECONDS=`expr ${SECOND_E} - ${SECOND_S}`
+	DBG "expr ${NANO_E} - ${NANO_S}"
 	DIFF_NANOS=`expr ${NANO_E} - ${NANO_S}`
-	DIFF=`expr ${DIFF_SECONDS} * 1000 + ${DIFF_NANOS} / 1000000`
+	DBG "expr ${DIFF_SECONDS} \\* 1000 + ${DIFF_NANOS} / 1000000"
+	DIFF=`expr ${DIFF_SECONDS} \\* 1000 + ${DIFF_NANOS} / 1000000`
 
-	[ "true" == "${OUTPUT_READY}" ] && echo "${NAME}.js, ${DIFF}, ${READY_AT}" || echo "${NAME}.js, ${DIFF}"
+	[ "true" == "${OUTPUT_READY}" ] && echo "${NAME}.js, ${DIFF}, ${READY_AT}" || echo "${NAME}.js, ${DIFF}, 0"
 }
 
-run_test empty false
-run_test main true
+function run_test_program {
+	TEST=$1
+	READY_AT_ARG=$2 
+	TIMES=$3
+	STATS=$(mktemp)
+	echo "name, duration, ready_at" > ${STATS}
+	for i in `seq 1 1 ${TIMES}`; do
+		EXP="run_test ${TEST} ${READY_AT_ARG}"
+		# echo ${EXP} >&2
+		${EXP} >> ${STATS}
+	done
+
+	DURATION=$(csvstat -c 2 --mean ${STATS})
+	READY_AT=$(csvstat -c 3 --mean ${STATS})
+	echo "${TEST}.js,${DURATION},${READY_AT}"
+	rm -f ${STATS}
+	echo "${TEST}.js tested" >&2
+}
+
+function checkPrerequisites {
+	[ "" == "$(which csvstat)" ] && echo "missing csvstat, please install csvstat: pip install csvkit" && exit 1
+	[ "" == "$(which csvlook)" ] && echo "missing csvlook, please install csvstat: pip install csvkit" && exit 1
+}
+
+function run_tests {
+	CSV=$(mktemp)
+	cd $(dirname $0)
+	echo "name,duration,ready_at" > ${CSV}
+	run_test_program empty false 10 >> ${CSV}
+	run_test_program main true 10   >> ${CSV}
+
+	npm uninstall express
+	npm install express
+	run_test_program web  true 10   >> ${CSV}
+	npm uninstall express
+
+	cat ${CSV} | csvlook
+	rm -f ${CSV}
+}
+
+CURRENT=$(pwd)
+checkPrerequisites
+run_tests
+cd ${CURRENT}
+
