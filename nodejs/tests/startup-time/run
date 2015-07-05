@@ -1,0 +1,26 @@
+#!/bin/bash
+
+function run_test {
+	NAME=$1
+	SCRIPT="$(dirname $0)/${NAME}.js"
+	OUTPUT_READY=$2
+	NODE=$(which node)
+
+	START=$(date '+%s %N')
+	READY_AT=$(${NODE} ${SCRIPT} ${START})
+	END=$(date '+%s %N')
+
+	SECOND_S=$(echo $START | awk '{print $1}')
+	SECOND_E=$(echo $END   | awk '{print $1}')
+	NANO_S=$(echo $START | awk '{print $2}')
+	NANO_E=$(echo $END   | awk '{print $2}')
+
+	DIFF_SECONDS=`expr ${SECOND_E} - ${SECOND_S}`
+	DIFF_NANOS=`expr ${NANO_E} - ${NANO_S}`
+	DIFF=`expr ${DIFF_SECONDS} * 1000 + ${DIFF_NANOS} / 1000000`
+
+	[ "true" == "${OUTPUT_READY}" ] && echo "${NAME}.js, ${DIFF}, ${READY_AT}" || echo "${NAME}.js, ${DIFF}"
+}
+
+run_test empty false
+run_test main true
