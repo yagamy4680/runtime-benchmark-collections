@@ -4,3 +4,4 @@ A benchmark collections for various runtimes, e.g. Node.js, Python, and so on. M
 # references
 
 - [Benchmarking C, Java, JavaScript and FreePascal](http://geekregator.com/2015-01-15-benchmarking_c_java_javascript_and_freepascal.html)
+- [Floating Point Benchmarks](https://www.fourmilab.ch/fbench/)
